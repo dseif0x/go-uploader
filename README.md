@@ -85,6 +85,7 @@ When using S3 backend, the application uses AWS SDK v2 which supports multiple a
 | `AWS_ACCESS_KEY_ID` | AWS access key ID | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key | `wJalrXUtnFEMI/K7MDENG...` |
 | `AWS_REGION` | AWS region where your S3 bucket is located | `us-east-1` |
+| `AWS_ENDPOINT_URL` | AWS Endpoint URL for S3 compatible services (e.g. MinIO) | `https://play.min.io:9000` |
 
 **Option 2: AWS Credentials File**
 Place credentials in `~/.aws/credentials`:
