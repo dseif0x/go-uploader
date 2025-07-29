@@ -5,6 +5,7 @@ go 1.24.3
 require (
 	github.com/aws/aws-sdk-go-v2 v1.37.0
 	github.com/aws/aws-sdk-go-v2/config v1.30.1
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.85.0
 	github.com/joho/godotenv v1.5.1
 	github.com/meyskens/go-turnstile v0.0.0-20230622160222-89160e594ca1

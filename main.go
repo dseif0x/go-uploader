@@ -21,10 +21,6 @@ import (
 //go:embed public
 var staticFiles embed.FS
 
-const (
-	uploadDir = "./uploads"
-)
-
 var storage store.Backend
 var turnstileSecret string
 
@@ -38,8 +34,24 @@ func main() {
 		log.Fatal("TURNSTILE_SECRET environment variable is not set")
 	}
 
-	storage, err = store.NewLocalStorage(uploadDir)
-	// storage, err = store.NewS3Storage("your-bucket-name", "uploads")
+	backend := os.Getenv("BACKEND")
+	if backend == "" {
+		log.Println("BACKEND environment variable not set, using local backend")
+		backend = "local"
+	}
+
+	if backend == "local" {
+		log.Println("Using local storage backend")
+		uploadDir := os.Getenv("LOCAL_PATH")
+		if uploadDir == "" {
+			log.Println("LOCAL_PATH environment variable not set, using default: ./uploads")
+			uploadDir = "./uploads"
+		}
+		storage, err = store.NewLocalStorage(uploadDir)
+	} else if backend == "s3" {
+		log.Println("Using S3 storage backend")
+		storage, err = store.NewS3Storage("go-upload", "uploads")
+	}
 	if err != nil {
 		log.Fatalf("Failed to init storage backend: %v", err)
 	}

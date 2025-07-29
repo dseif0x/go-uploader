@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	s3lib "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -34,10 +35,16 @@ func NewS3Storage(bucket string, prefix string) (*S3Storage, error) {
 func (s *S3Storage) SaveFile(name string, data io.Reader) error {
 	key := strings.TrimPrefix(s.Prefix+"/"+name, "/")
 
-	_, err := s.Client.PutObject(context.TODO(), &s3lib.PutObjectInput{
+	uploader := manager.NewUploader(s.Client, func(u *manager.Uploader) {
+		u.PartSize = 8 * 1024 * 1024
+		u.Concurrency = 3
+	})
+
+	_, err := uploader.Upload(context.TODO(), &s3lib.PutObjectInput{
 		Bucket: aws.String(s.BucketName),
 		Key:    aws.String(key),
 		Body:   data,
 	})
+
 	return err
 }
