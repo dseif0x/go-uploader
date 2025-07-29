@@ -51,6 +51,7 @@ docker build -t go-uploader .
 ```bash
 docker run -p 8080:8080 \
   -e TURNSTILE_SECRET="your-turnstile-secret" \
+  -e TURNSTILE_SITEKEY="your-turnstile-sitekey" \
   -v /path/to/uploads:/uploads \
   go-uploader
 ```
@@ -62,6 +63,7 @@ docker run -p 8080:8080 \
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `TURNSTILE_SECRET` | Cloudflare Turnstile secret key for CAPTCHA verification | `0x4AAAAAAABnH...` |
+| `TURNSTILE_SITEKEY` | Cloudflare Turnstile site key for the frontend | `0x4AAAAAAABnH...` |
 
 ### Storage Backend Configuration
 
@@ -143,7 +145,7 @@ LOCAL_PATH=./uploads
 2. Navigate to "Turnstile" section
 3. Create a new site
 4. Copy the site key and secret key
-5. Update the site key in `public/index.html` (line 50)
+5. Set the site key in the `TURNSTILE_SITEKEY` environment variable
 6. Set the secret key in the `TURNSTILE_SECRET` environment variable
 
 ### 2. Local Storage Setup

@@ -47,7 +47,7 @@
 <h2>Upload Files</h2>
 <form id="uploadForm">
     <input type="file" id="fileInput" name="file" multiple required>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAABnH-fkzGlNnOO4Y" data-callback="onTurnstileSuccess"></div>
+    <div class="cf-turnstile" data-sitekey="{{.SiteKey}}" data-callback="onTurnstileSuccess"></div>
     <button type="submit" id="submitButton" disabled>Upload</button>
 </form>
 <div id="status"></div>

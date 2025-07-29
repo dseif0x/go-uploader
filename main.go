@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"github.com/meyskens/go-turnstile"
 	store "go-uploader/storage"
+	"html/template"
 	"io"
 	"io/fs"
 	"log"
@@ -34,12 +36,40 @@ func main() {
 		log.Fatal("TURNSTILE_SECRET environment variable is not set")
 	}
 
+	err = setupStorage()
+	if err != nil {
+		log.Fatalf("Failed to setup storage: %v", err)
+	}
+
+	indexCache, err := buildIndexPage()
+	if err != nil {
+		log.Fatalf("Failed to build index page: %v", err)
+	}
+
+	// Serve static files
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(indexCache))
+	})
+
+	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	log.Println("Server started on :8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func setupStorage() error {
 	backend := os.Getenv("BACKEND")
 	if backend == "" {
 		log.Println("BACKEND environment variable not set, using local backend")
 		backend = "local"
 	}
 
+	var err error
 	if backend == "local" {
 		log.Println("Using local storage backend")
 		uploadDir := os.Getenv("LOCAL_PATH")
@@ -53,28 +83,36 @@ func main() {
 		storage, err = store.NewS3Storage("go-upload", "uploads")
 	}
 	if err != nil {
-		log.Fatalf("Failed to init storage backend: %v", err)
+		return err
 	}
-
-	var staticFS = fs.FS(staticFiles)
-	htmlContent, err := fs.Sub(staticFS, "public")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fs := http.FileServer(http.FS(htmlContent))
-
-	// Serve static files
-	http.Handle("/", fs)
-
-	http.HandleFunc("/upload", uploadHandler)
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	return nil
 }
+
+func buildIndexPage() (string, error) {
+	siteKey := os.Getenv("TURNSTILE_SITEKEY")
+	if siteKey == "" {
+		log.Fatal("TURNSTILE_SITEKEY is not set")
+	}
+
+	contentFS, err := fs.Sub(staticFiles, "public")
+	if err != nil {
+		return "", err
+	}
+
+	tmpl, err := template.ParseFS(contentFS, "index.html")
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, map[string]string{
+		"SiteKey": siteKey,
+	})
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
