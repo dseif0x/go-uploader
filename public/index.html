@@ -2,100 +2,174 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Anonymous Upload</title>
+    <title>Hochzeitsfotos</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 2rem auto;
-            padding: 1rem;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h2 {
-            text-align: center;
-        }
-        input[type="file"] {
-            width: 100%;
-            margin: 1rem 0;
-        }
-        button {
-            display: block;
-            width: 100%;
-            padding: 0.75rem;
-            font-size: 1rem;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:disabled {
-            background-color: #aaa;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 1rem;
-            text-align: center;
-        }
-    </style>
+    :root {
+      --primary: #e91e63;
+      --secondary: #f8f9fa;
+      --border: #ddd;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+        font-family: 'Inter', sans-serif;
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--secondary);
+        color: #333;
+    }
+
+    body{
+        min-height: 100vh;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-image: url('../assets/background-picture.png');
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 1rem;
+      padding: 1.5rem;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      opacity: 88%;
+    }
+
+    h2 {
+      text-align: center;
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    p.description {
+      text-align: center;
+      font-size: 0.95rem;
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      margin-bottom: 1rem;
+    }
+
+    .cf-turnstile {
+      margin: 1rem 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.9rem;
+      background: var(--primary);
+      color: white;
+      font-size: 1.05rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+  </style>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
-<h2>Upload Files</h2>
-<form id="uploadForm">
-    <input type="file" id="fileInput" name="file" multiple required>
-    <div class="cf-turnstile" data-sitekey="{{.SiteKey}}" data-callback="onTurnstileSuccess"></div>
-    <button type="submit" id="submitButton" disabled>Upload</button>
-</form>
-<div id="status"></div>
+    <div class="container">
+        <h2>📸 Hochzeitsfotos hochladen</h2>
+        <p class="description">Teile deine schönsten Momente mit uns!<br>Bitte lade hier deine Bilder hoch.</p>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" name="file" accept="image/*" multiple required>
+            <div class="cf-turnstile" data-sitekey="{{.SiteKey}}" data-callback="onTurnstileSuccess"></div>
+            <button type="submit" id="submitButton" disabled>📤 Hochladen</button>
+        </form>
+        <div id="status"></div>
+        <footer>
+        ❤️ Vielen Dank für deine Erinnerungen!
+        </footer>
+    </div>
 
-<script>
-    let turnstileToken = null;
+    <script>
+        let turnstileToken = null;
 
-    function onTurnstileSuccess(token) {
-        turnstileToken = token;
-        document.getElementById('submitButton').disabled = false;
-    }
-
-    document.getElementById('uploadForm').addEventListener('submit', async function(event) {
-        event.preventDefault();
-        const files = document.getElementById('fileInput').files;
-        if (files.length === 0 || !turnstileToken) {
-            document.getElementById('status').innerText = 'Select files and complete CAPTCHA.';
-            return;
+        function onTurnstileSuccess(token) {
+            turnstileToken = token;
+            document.getElementById('submitButton').disabled = false;
         }
 
-        const formData = new FormData();
-        for (const file of files) {
-            formData.append('file', file);
-        }
-        document.getElementById('submitButton').disabled = true;
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const files = document.getElementById('fileInput').files;
+            if (files.length === 0 || !turnstileToken) {
+                document.getElementById('status').innerText = 'Select files and complete CAPTCHA.';
+                return;
+            }
 
-        const statusEl = document.getElementById('status');
-        statusEl.innerText = 'Uploading...';
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('file', file);
+            }
+            document.getElementById('submitButton').disabled = true;
 
-        const response = await fetch('/upload', {
-            method: 'POST',
-            headers: {
-                'X-Turnstile-Token': turnstileToken
-            },
-            body: formData
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = 'Uploading...';
+
+            const response = await fetch('/upload', {
+                method: 'POST',
+                headers: {
+                    'X-Turnstile-Token': turnstileToken
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                statusEl.innerText = 'Upload successful!';
+            } else {
+                const errorText = await response.text();
+                statusEl.innerText = `Error: ${errorText}`;
+            }
+
+            turnstileToken = null;
+            turnstile.reset();
+            document.getElementById('submitButton').disabled = true;
         });
-
-        if (response.ok) {
-            statusEl.innerText = 'Upload successful!';
-        } else {
-            const errorText = await response.text();
-            statusEl.innerText = `Error: ${errorText}`;
-        }
-
-        turnstileToken = null;
-        turnstile.reset();
-        document.getElementById('submitButton').disabled = true;
-    });
-</script>
+    </script>
 </body>
 </html>
