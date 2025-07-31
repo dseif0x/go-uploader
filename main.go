@@ -48,11 +48,15 @@ func main() {
 
 	// Serve static files
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(indexCache))
-	})
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(indexCache))
+			return
+		}
 
-	http.Handle("/assets/", http.FileServer(http.FS(files)))
+		fileServer := http.FileServer(http.FS(files))
+		fileServer.ServeHTTP(w, r)
+	})
 
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
