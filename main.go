@@ -41,7 +41,7 @@ func main() {
 		log.Fatalf("Failed to setup storage: %v", err)
 	}
 
-	indexCache, err := buildIndexPage()
+	indexCache, files, err := buildIndexPage()
 	if err != nil {
 		log.Fatalf("Failed to build index page: %v", err)
 	}
@@ -51,6 +51,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(indexCache))
 	})
+
+	http.Handle("/assets/", http.FileServer(http.FS(files)))
 
 	http.HandleFunc("/upload", uploadHandler)
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -88,7 +90,7 @@ func setupStorage() error {
 	return nil
 }
 
-func buildIndexPage() (string, error) {
+func buildIndexPage() (string, fs.FS, error) {
 	siteKey := os.Getenv("TURNSTILE_SITEKEY")
 	if siteKey == "" {
 		log.Fatal("TURNSTILE_SITEKEY is not set")
@@ -96,21 +98,21 @@ func buildIndexPage() (string, error) {
 
 	contentFS, err := fs.Sub(staticFiles, "public")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	tmpl, err := template.ParseFS(contentFS, "index.html")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, map[string]string{
 		"SiteKey": siteKey,
 	})
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return buf.String(), nil
+	return buf.String(), contentFS, nil
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
