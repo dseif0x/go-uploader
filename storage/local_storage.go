@@ -19,6 +19,10 @@ func NewLocalStorage(path string) (*LocalStorage, error) {
 }
 
 func (l *LocalStorage) SaveFile(name string, data io.Reader) error {
+	err := os.MkdirAll(filepath.Dir(filepath.Join(l.BasePath, name)), 0755)
+	if err != nil {
+		return fmt.Errorf("creating directories: %w", err)
+	}
 	fullPath := filepath.Join(l.BasePath, name)
 	f, err := os.Create(fullPath)
 	if err != nil {
