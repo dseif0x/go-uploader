@@ -146,6 +146,9 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	mr := multipart.NewReader(r.Body, params["boundary"])
 	saved := 0
 
+	now := time.Now()
+	subfolder := now.Format("2006-01-02_15-04-05.000")
+
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF {
@@ -160,8 +163,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		now := time.Now()
-		subfolder := now.Format("2006-01-02_15-04-05.000")
 		filename := filepath.Join(subfolder, sanitizeFilename(part.FileName()))
 		if err := storage.SaveFile(filename, part); err != nil {
 			log.Printf("error saving file: %v", err)
