@@ -101,6 +101,11 @@
       text-align: center;
       font-size: 0.95rem;
       color: #555;
+      padding: 0.5rem;
+      border-radius: 4px;
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      min-height: 1.5rem;
     }
 
     footer {
@@ -129,44 +134,130 @@
 
     <script>
         let turnstileToken = null;
+        let isUploading = false;
 
         function onTurnstileSuccess(token) {
             turnstileToken = token;
             document.getElementById('submitButton').disabled = false;
         }
 
+        // Utility function to sleep for a given duration
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Upload with retry logic and exponential backoff
+        async function uploadWithRetry(formData, maxRetries = 3) {
+            const statusEl = document.getElementById('status');
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    statusEl.innerText = attempt === 1 ? 'Uploading...' : `Retrying upload (attempt ${attempt}/${maxRetries})...`;
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+                    
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        headers: {
+                            'X-Turnstile-Token': turnstileToken
+                        },
+                        body: formData,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    const responseText = await response.text();
+                    
+                    if (response.ok) {
+                        statusEl.innerHTML = '<span style="color: green;">✅ ' + responseText + '</span>';
+                        return true;
+                    } else if (response.status === 206) {
+                        // Partial content - some files uploaded successfully
+                        statusEl.innerHTML = '<span style="color: orange;">⚠️ ' + responseText + '</span>';
+                        return true;
+                    } else if (response.status === 408 || response.status === 400) {
+                        // Timeout or connection issues - retry
+                        if (attempt < maxRetries) {
+                            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+                            statusEl.innerText = `Connection issue detected. Retrying in ${delay/1000} seconds...`;
+                            await sleep(delay);
+                            continue;
+                        } else {
+                            statusEl.innerHTML = '<span style="color: red;">❌ Upload failed after ' + maxRetries + ' attempts: ' + responseText + '</span>';
+                            return false;
+                        }
+                    } else {
+                        // Other errors - don't retry
+                        statusEl.innerHTML = '<span style="color: red;">❌ Error: ' + responseText + '</span>';
+                        return false;
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        // Request timed out
+                        if (attempt < maxRetries) {
+                            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+                            statusEl.innerText = `Upload timed out. Retrying in ${delay/1000} seconds...`;
+                            await sleep(delay);
+                            continue;
+                        } else {
+                            statusEl.innerHTML = '<span style="color: red;">❌ Upload failed: Connection timeout after ' + maxRetries + ' attempts</span>';
+                            return false;
+                        }
+                    } else {
+                        // Network error or other issues
+                        if (attempt < maxRetries) {
+                            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+                            statusEl.innerText = `Network error: ${error.message}. Retrying in ${delay/1000} seconds...`;
+                            await sleep(delay);
+                            continue;
+                        } else {
+                            statusEl.innerHTML = '<span style="color: red;">❌ Upload failed after ' + maxRetries + ' attempts: ' + error.message + '</span>';
+                            return false;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         document.getElementById('uploadForm').addEventListener('submit', async function(event) {
             event.preventDefault();
+            
+            if (isUploading) {
+                return; // Prevent multiple simultaneous uploads
+            }
+            
             const files = document.getElementById('fileInput').files;
             if (files.length === 0 || !turnstileToken) {
                 document.getElementById('status').innerText = 'Select files and complete CAPTCHA.';
                 return;
             }
 
+            // Show file count and estimated size
+            const totalSize = Array.from(files).reduce((sum, file) => sum + file.size, 0);
+            const sizeText = totalSize > 1024*1024 ? `${(totalSize/(1024*1024)).toFixed(1)}MB` : `${(totalSize/1024).toFixed(0)}KB`;
+            
             const formData = new FormData();
             for (const file of files) {
                 formData.append('file', file);
             }
+            
+            isUploading = true;
             document.getElementById('submitButton').disabled = true;
+            document.getElementById('status').innerText = `Preparing to upload ${files.length} file(s) (${sizeText})...`;
 
-            const statusEl = document.getElementById('status');
-            statusEl.innerText = 'Uploading...';
-
-            const response = await fetch('/upload', {
-                method: 'POST',
-                headers: {
-                    'X-Turnstile-Token': turnstileToken
-                },
-                body: formData
-            });
-
-            if (response.ok) {
-                statusEl.innerText = 'Upload successful!';
-            } else {
-                const errorText = await response.text();
-                statusEl.innerText = `Error: ${errorText}`;
+            const success = await uploadWithRetry(formData);
+            
+            isUploading = false;
+            
+            if (success) {
+                // Reset form on success
+                document.getElementById('fileInput').value = '';
             }
-
+            
+            // Reset turnstile and button state
             turnstileToken = null;
             turnstile.reset();
             document.getElementById('submitButton').disabled = true;

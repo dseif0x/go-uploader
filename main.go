@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"github.com/meyskens/go-turnstile"
 	store "go-uploader/storage"
@@ -65,8 +67,16 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
+	// Create server with timeouts to handle slow/interrupted uploads
+	server := &http.Server{
+		Addr:         ":8080",
+		ReadTimeout:  5 * time.Minute,  // Allow up to 5 minutes for reading request body
+		WriteTimeout: 30 * time.Second, // Response timeout
+		IdleTimeout:  60 * time.Second, // Keep-alive timeout
+	}
+
 	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(server.ListenAndServe())
 }
 
 func setupStorage() error {
@@ -126,7 +136,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	// Add context with timeout for the upload operation
+	ctx, cancel := context.WithTimeout(r.Context(), 4*time.Minute)
+	defer cancel()
+	r = r.WithContext(ctx)
 
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
@@ -145,16 +158,48 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	mr := multipart.NewReader(r.Body, params["boundary"])
 	saved := 0
+	failed := 0
+	var lastError error
 
 	now := time.Now()
 	subfolder := now.Format("2006-01-02_15-04-05.000")
 
+	log.Printf("Starting upload session: %s", subfolder)
+
 	for {
+		// Check context for timeout/cancellation
+		select {
+		case <-ctx.Done():
+			log.Printf("Upload cancelled or timed out for session %s: %v", subfolder, ctx.Err())
+			if saved > 0 {
+				// Partial success - inform client
+				w.WriteHeader(http.StatusPartialContent)
+				w.Write([]byte(fmt.Sprintf("Upload partially completed: %d file(s) uploaded, %d failed due to timeout", saved, failed)))
+			} else {
+				http.Error(w, "Upload timed out", http.StatusRequestTimeout)
+			}
+			return
+		default:
+		}
+
 		part, err := mr.NextPart()
 		if err == io.EOF {
+			log.Printf("Upload session %s completed normally", subfolder)
 			break
 		}
 		if err != nil {
+			log.Printf("Error reading multipart data in session %s: %v", subfolder, err)
+			lastError = err
+
+			// Check if this is an unexpected EOF (connection dropped)
+			if errors.Is(err, io.ErrUnexpectedEOF) || strings.Contains(err.Error(), "unexpected EOF") {
+				failed++
+				log.Printf("Connection interrupted during upload in session %s", subfolder)
+				// Don't break immediately - there might be more data
+				continue
+			}
+
+			// For other errors, break the loop
 			break
 		}
 		defer part.Close()
@@ -164,20 +209,42 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		filename := filepath.Join(subfolder, sanitizeFilename(part.FileName()))
+		log.Printf("Saving file: %s", filename)
+
 		if err := storage.SaveFile(filename, part); err != nil {
-			log.Printf("error saving file: %v", err)
+			log.Printf("Error saving file %s in session %s: %v", filename, subfolder, err)
+			failed++
+			lastError = err
 			continue
 		}
 		saved++
+		log.Printf("Successfully saved file: %s", filename)
 	}
 
+	log.Printf("Upload session %s summary: %d saved, %d failed", subfolder, saved, failed)
+
 	if saved == 0 {
-		http.Error(w, "No files uploaded", http.StatusBadRequest)
+		if lastError != nil {
+			if errors.Is(lastError, io.ErrUnexpectedEOF) || strings.Contains(lastError.Error(), "unexpected EOF") {
+				http.Error(w, "Upload failed due to connection issues. Please check your internet connection and try again.", http.StatusBadRequest)
+			} else {
+				http.Error(w, fmt.Sprintf("Upload failed: %v", lastError), http.StatusBadRequest)
+			}
+		} else {
+			http.Error(w, "No files uploaded", http.StatusBadRequest)
+		}
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(fmt.Sprintf("Uploaded %d file(s)", saved)))
+	if failed > 0 {
+		// Partial success
+		w.WriteHeader(http.StatusPartialContent)
+		w.Write([]byte(fmt.Sprintf("Partially successful: %d file(s) uploaded, %d failed", saved, failed)))
+	} else {
+		// Complete success
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(fmt.Sprintf("Uploaded %d file(s)", saved)))
+	}
 }
 
 func sanitizeFilename(name string) string {
