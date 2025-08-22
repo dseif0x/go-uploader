@@ -10,6 +10,10 @@ A simple, secure file upload service written in Go with Cloudflare Turnstile CAP
 - 🚀 **Lightweight**: Minimal dependencies and embedded static files
 - 🐳 **Docker Support**: Ready-to-deploy container image
 - 💚 **Health Checks**: Built-in health endpoint for monitoring
+- 🔄 **Upload Resilience**: Automatic retry logic with exponential backoff for failed uploads
+- ⏱️ **Timeout Handling**: Configurable timeouts to prevent hanging uploads
+- 📊 **Progress Feedback**: Real-time upload status and progress indication
+- 🛡️ **Error Recovery**: Smart error handling for connection issues and partial uploads
 
 ## Quick Start
 
@@ -136,6 +140,29 @@ LOCAL_PATH=./uploads
 - **URL**: `/`
 - **Method**: `GET`
 - **Description**: Serves the upload interface and static assets
+
+## Upload Resilience Features
+
+This application includes several features to make uploads more resilient to network connectivity issues:
+
+### Backend Resilience
+- **Server Timeouts**: Configurable read, write, and idle timeouts prevent hanging connections
+- **Context-Based Cancellation**: Upload operations respect client disconnections and timeouts
+- **Smart Error Handling**: Distinguishes between recoverable connection issues and permanent errors
+- **Partial Success Support**: Tracks successful and failed file uploads separately
+- **Enhanced Logging**: Detailed logging for debugging connectivity issues
+
+### Frontend Resilience
+- **Automatic Retry**: Failed uploads are automatically retried up to 3 times
+- **Exponential Backoff**: Retry delays increase progressively (1s, 2s, 4s) to avoid overwhelming servers
+- **Timeout Protection**: 5-minute upload timeout prevents indefinite hanging
+- **Progress Indication**: Real-time status updates show upload progress and file counts
+- **Error Classification**: Different error types receive appropriate handling (retry vs. fail)
+
+### Error Handling
+- **Connection Issues**: Automatic retry for timeout and EOF errors
+- **Partial Uploads**: Clear indication when some files succeed and others fail
+- **User Feedback**: Descriptive error messages help users understand and resolve issues
 
 ## Setup Instructions
 
